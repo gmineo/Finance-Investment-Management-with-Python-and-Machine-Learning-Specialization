@@ -1,7 +1,5 @@
-
-
-import numpy as np
 import pandas as pd
+import numpy as np
 
 def drawdown(return_series: pd.Series):
     """Takes a time series of asset returns.
@@ -16,6 +14,7 @@ def drawdown(return_series: pd.Series):
     return pd.DataFrame({"Wealth": wealth_index, 
                          "Previous Peak": previous_peaks, 
                          "Drawdown": drawdowns})
+
 
 def get_ffme_returns():
     """
@@ -40,13 +39,6 @@ def get_hfi_returns():
     hfi.index = hfi.index.to_period('M')
     return hfi
 
-def semideviation(r):
-    """
-    Returns the semideviation aka negative semideviation of r
-    r must be a Series or a DataFrame, else raises a TypeError
-    """
-    is_negative = r < 0
-    return r[is_negative].std(ddof=0)
 
 def skewness(r):
     """
@@ -73,7 +65,31 @@ def kurtosis(r):
     exp = (demeaned_r**4).mean()
     return exp/sigma_r**4
 
-def var_historic(r, level=1):
+
+import scipy.stats
+def is_normal(r, level=0.01):
+    """
+    Applies the Jarque-Bera test to determine if a Series is normal or not
+    Test is applied at the 1% level by default
+    Returns True if the hypothesis of normality is accepted, False otherwise
+    """
+    if isinstance(r, pd.DataFrame):
+        return r.aggregate(is_normal)
+    else:
+        statistic, p_value = scipy.stats.jarque_bera(r)
+        return p_value > level
+
+    
+def semideviation(r):
+    """
+    Returns the semideviation aka negative semideviation of r
+    r must be a Series or a DataFrame
+    """
+    is_negative = r < 0
+    return r[is_negative].std(ddof=0)
+
+
+def var_historic(r, level=5):
     """
     Returns the historic Value at Risk at a specified level
     i.e. returns the number such that "level" percent of the returns
@@ -81,26 +97,28 @@ def var_historic(r, level=1):
     """
     if isinstance(r, pd.DataFrame):
         return r.aggregate(var_historic, level=level)
+    
     elif isinstance(r, pd.Series):
         return -np.percentile(r, level)
     else:
         raise TypeError("Expected r to be a Series or DataFrame")
-        
-        
-        
-        
-from scipy.stats import norm
-def var_gaussian(r, level=5):
+
+
+def cvar_historic(r, level=5):
     """
-    Returns the Parametric Gauusian VaR of a Series or DataFrame
+    Computes the Conditional VaR of Series or DataFrame
     """
-    # compute the Z score assuming it was Gaussian
-    z = norm.ppf(level/100)
-    return -(r.mean() + z*r.std(ddof=0))
+    if isinstance(r, pd.Series):
+        is_beyond = r <= -var_historic(r, level=level)
+        return -r[is_beyond].mean()
+    elif isinstance(r, pd.DataFrame):
+        return r.aggregate(cvar_historic, level=level)
+    else:
+        raise TypeError("Expected r to be a Series or DataFrame")
 
 
 from scipy.stats import norm
-def var_gaussianCF(r, level=1, modified=True):
+def var_gaussian(r, level=5, modified=False):
     """
     Returns the Parametric Gauusian VaR of a Series or DataFrame
     If "modified" is True, then the modified VaR is returned,

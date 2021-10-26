@@ -1,6 +1,3 @@
-
-
-import numpy as np
 import pandas as pd
 
 def drawdown(return_series: pd.Series):
@@ -16,6 +13,7 @@ def drawdown(return_series: pd.Series):
     return pd.DataFrame({"Wealth": wealth_index, 
                          "Previous Peak": previous_peaks, 
                          "Drawdown": drawdowns})
+
 
 def get_ffme_returns():
     """
@@ -40,13 +38,6 @@ def get_hfi_returns():
     hfi.index = hfi.index.to_period('M')
     return hfi
 
-def semideviation(r):
-    """
-    Returns the semideviation aka negative semideviation of r
-    r must be a Series or a DataFrame, else raises a TypeError
-    """
-    is_negative = r < 0
-    return r[is_negative].std(ddof=0)
 
 def skewness(r):
     """
@@ -73,48 +64,16 @@ def kurtosis(r):
     exp = (demeaned_r**4).mean()
     return exp/sigma_r**4
 
-def var_historic(r, level=1):
+import scipy.stats
+def is_normal(r, level=0.01):
     """
-    Returns the historic Value at Risk at a specified level
-    i.e. returns the number such that "level" percent of the returns
-    fall below that number, and the (100-level) percent are above
+    Applies the Jarque-Bera test to determine if a Series is normal or not
+    Test is applied at the 1% level by default
+    Returns True if the hypothesis of normality is accepted, False otherwise
     """
     if isinstance(r, pd.DataFrame):
-        return r.aggregate(var_historic, level=level)
-    elif isinstance(r, pd.Series):
-        return -np.percentile(r, level)
+        return r.aggregate(is_normal)
     else:
-        raise TypeError("Expected r to be a Series or DataFrame")
-        
-        
-        
-        
-from scipy.stats import norm
-def var_gaussian(r, level=5):
-    """
-    Returns the Parametric Gauusian VaR of a Series or DataFrame
-    """
-    # compute the Z score assuming it was Gaussian
-    z = norm.ppf(level/100)
-    return -(r.mean() + z*r.std(ddof=0))
+        statistic, p_value = scipy.stats.jarque_bera(r)
+        return p_value > level
 
-
-from scipy.stats import norm
-def var_gaussianCF(r, level=1, modified=True):
-    """
-    Returns the Parametric Gauusian VaR of a Series or DataFrame
-    If "modified" is True, then the modified VaR is returned,
-    using the Cornish-Fisher modification
-    """
-    # compute the Z score assuming it was Gaussian
-    z = norm.ppf(level/100)
-    if modified:
-        # modify the Z score based on observed skewness and kurtosis
-        s = skewness(r)
-        k = kurtosis(r)
-        z = (z +
-                (z**2 - 1)*s/6 +
-                (z**3 -3*z)*(k-3)/24 -
-                (2*z**3 - 5*z)*(s**2)/36
-            )
-    return -(r.mean() + z*r.std(ddof=0))
