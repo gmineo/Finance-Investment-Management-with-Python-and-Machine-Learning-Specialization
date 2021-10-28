@@ -156,7 +156,7 @@ def cvar_historic(r, level=5):
     Computes the Conditional VaR of Series or DataFrame
     """
     if isinstance(r, pd.Series):
-        is_beyond = r <= -var_historic(r, level=level)
+        is_beyond = r <= var_historic(r, level=level)
         return -r[is_beyond].mean()
     elif isinstance(r, pd.DataFrame):
         return r.aggregate(cvar_historic, level=level)
@@ -165,7 +165,7 @@ def cvar_historic(r, level=5):
 
 
 from scipy.stats import norm
-def var_gaussian(r, level=5, modified=True):
+def var_gaussian(r, level=5, modified=False):
     """
     Returns the Parametric Gauusian VaR of a Series or DataFrame
     If "modified" is True, then the modified VaR is returned,
@@ -183,3 +183,35 @@ def var_gaussian(r, level=5, modified=True):
                 (2*z**3 - 5*z)*(s**2)/36
             )
     return -(r.mean() + z*r.std(ddof=0))
+
+
+def portfolio_return(weights, returns):
+    """
+    Computes the return on a portfolio from constituent returns and weights
+    weights are a numpy array or Nx1 matrix and returns are a numpy array or Nx1 matrix
+    """
+    return weights.T @ returns
+
+
+def portfolio_vol(weights, covmat):
+    """
+    Computes the vol of a portfolio from a covariance matrix and constituent weights
+    weights are a numpy array or N x 1 maxtrix and covmat is an N x N matrix
+    """
+    return (weights.T @ covmat @ weights)**0.5
+
+
+def plot_ef2(n_points, er, cov):
+    """
+    Plots the 2-asset efficient frontier
+    """
+    if er.shape[0] != 2 or er.shape[0] != 2:
+        raise ValueError("plot_ef2 can only plot 2-asset frontiers")
+    weights = [np.array([w, 1-w]) for w in np.linspace(0, 1, n_points)]
+    rets = [portfolio_return(w, er) for w in weights]
+    vols = [portfolio_vol(w, cov) for w in weights]
+    ef = pd.DataFrame({
+        "Returns": rets, 
+        "Volatility": vols
+    })
+    return ef.plot.line(x="Volatility", y="Returns", style=".-")
